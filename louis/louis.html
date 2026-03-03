@@ -1,0 +1,748 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta name="x-poe-datastore-behavior" content="local_only"><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>交易記錄 - 測試版</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* 小幅自訂以營造企業風 */
+    :root{
+      --brand: #0f4c81;
+      --muted: #6b7280;
+    }
+    body { background: linear-gradient(180deg,#f8fafc 0%, #ffffff 100%); }
+    .card { background: white; border-radius: 0.5rem; box-shadow: 0 6px 20px rgba(16,24,40,0.06); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Noto Sans Mono", monospace; }
+    table td, table th { padding: .5rem .75rem; }
+    input[type="file"] { padding: .25rem 0; }
+  </style>
+</head>
+<body class="min-h-screen antialiased text-gray-800">
+  <div class="max-w-6xl mx-auto px-4 py-8">
+    <header class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold text-[var(--brand)]">TradeLogger — 測試版（企業風）</h1>
+        <p class="text-sm text-[var(--muted)] mt-1">簡易交易記錄 / 持倉檢視 / 匯入匯出 CSV/JSON — 前端測試版</p>
+        <p class="text-sm text-[var(--muted)] mt-1">製作人：亮先生</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <a id="download-json-all" class="inline-flex items-center gap-2 px-4 py-2 card text-sm text-white bg-[var(--brand)] hover:bg-blue-700 rounded-md" href="#">下載 JSON</a>
+        <label class="flex items-center gap-2 px-4 py-2 card text-sm bg-white rounded-md cursor-pointer">
+          <input id="file-json-load" type="file" accept=".json" class="hidden">
+          匯入 JSON
+        </label>
+      </div>
+    </header>
+
+    <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- 左側：新增交易 -->
+      <section class="lg:col-span-1 card p-6">
+        <h2 class="text-lg font-medium text-gray-900 mb-3">新增交易</h2>
+        <form id="trade-form" class="space-y-3">
+          <div>
+            <label class="block text-sm text-gray-700">日期 (YYYY-MM-DD)</label>
+            <input id="f-date" type="date" class="mt-1 block w-full rounded-md border-gray-200 shadow-sm">
+            <p id="err-date" class="text-xs text-red-600 hidden mt-1"></p>
+          </div>
+
+          <div>
+            <label class="block text-sm text-gray-700">股票代碼 (4 位數字)</label>
+            <input id="f-symbol" type="text" maxlength="4" placeholder="2330" class="mt-1 block w-full rounded-md border-gray-200 shadow-sm">
+            <p id="err-symbol" class="text-xs text-red-600 hidden mt-1"></p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm text-gray-700">方向</label>
+              <select id="f-side" class="mt-1 block w-full rounded-md border-gray-200 shadow-sm">
+                <option>BUY</option>
+                <option>SELL</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-700">數量</label>
+              <input id="f-qty" type="number" min="1" step="1" value="1" class="mt-1 block w-full rounded-md border-gray-200 shadow-sm">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm text-gray-700">價格</label>
+              <input id="f-price" type="number" min="0" step="0.000001" value="0" class="mt-1 block w-full rounded-md border-gray-200 shadow-sm">
+            </div>
+            <div>
+              <label class="block text-sm text-gray-700">手續費</label>
+              <input id="f-fee" type="number" min="0" step="0.000001" value="0" class="mt-1 block w-full rounded-md border-gray-200 shadow-sm">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm text-gray-700">備註</label>
+            <input id="f-note" type="text" placeholder="可選" class="mt-1 block w-full rounded-md border-gray-200 shadow-sm">
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button id="btn-add" type="button" class="px-4 py-2 bg-[var(--brand)] text-white rounded-md shadow-sm">新增</button>
+            <button id="btn-clear" type="button" class="px-3 py-2 border rounded-md text-sm">清除</button>
+          </div>
+          <p id="form-msg" class="text-sm text-green-700 hidden"></p>
+        </form>
+      </section>
+
+      <!-- 中：交易列表 -->
+      <section class="lg:col-span-2 card p-6">
+        <div class="flex items-start justify-between">
+          <div>
+            <h2 class="text-lg font-medium text-gray-900">交易列表</h2>
+            <p class="text-sm text-[var(--muted)]">列出所有交易，支援過濾與匯出 CSV</p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <input id="filter-symbol" type="text" maxlength="4" placeholder="股票代碼過濾" class="rounded-md border-gray-200 shadow-sm px-3 py-2 text-sm">
+            <input id="filter-start" type="date" class="rounded-md border-gray-200 shadow-sm px-3 py-2 text-sm">
+            <input id="filter-end" type="date" class="rounded-md border-gray-200 shadow-sm px-3 py-2 text-sm">
+            <button id="btn-filter" class="px-3 py-2 bg-white border rounded-md text-sm">過濾</button>
+            <button id="btn-reset" class="px-3 py-2 bg-white border rounded-md text-sm">重設</button>
+            <button id="btn-export-csv" class="px-3 py-2 bg-[var(--brand)] text-white rounded-md text-sm">匯出 CSV</button>
+            <label class="flex items-center gap-2 px-3 py-2 bg-white border rounded-md cursor-pointer text-sm">
+              <input id="file-csv-import" type="file" accept=".csv" class="hidden">
+              匯入 CSV
+            </label>
+          </div>
+        </div>
+
+        <div class="mt-4 overflow-x-auto">
+          <table class="w-full text-sm table-auto">
+            <thead class="bg-gray-50 text-gray-700">
+              <tr>
+                <th class="text-left">日期</th>
+                <th class="text-left">ID</th>
+                <th class="text-left">代碼</th>
+                <th class="text-left">方向</th>
+                <th class="text-right">數量</th>
+                <th class="text-right">價格</th>
+                <th class="text-right">手續費</th>
+                <th class="text-left">備註</th>
+                <th class="text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody id="trades-tbody" class="text-gray-800">
+              <!-- rows injected by JS -->
+            </tbody>
+          </table>
+        </div>
+        <p id="no-trades" class="text-sm text-[var(--muted)] mt-3 hidden">目前沒有任何交易。</p>
+      </section>
+
+      <!-- 底部：持倉摘要 -->
+      <section class="lg:col-span-3 card p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-medium text-gray-900">持倉摘要</h3>
+            <p class="text-sm text-[var(--muted)]">根據 FIFO 計算未實現成本與已實現損益（簡化處理）</p>
+          </div>
+          <div class="text-sm text-[var(--muted)]">資料存在於本機頁面（重新整理會遺失）</div>
+        </div>
+
+        <div class="mt-4 overflow-x-auto">
+          <table class="w-full text-sm table-auto">
+            <thead class="bg-gray-50 text-gray-700">
+              <tr>
+                <th class="text-left">代碼</th>
+                <th class="text-right">數量</th>
+                <th class="text-right">平均成本</th>
+                <th class="text-right">已實現損益</th>
+              </tr>
+            </thead>
+            <tbody id="positions-tbody" class="text-gray-800">
+              <!-- injected -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer class="mt-8 text-center text-sm text-[var(--muted)]">
+      © 測試版 - TradeLogger • 企業風樣式 • 手機友好
+    </footer>
+  </div>
+
+<script>
+/*
+ Frontend reimplementation of Trade and TradeLogger
+ Keeps validation and FIFO logic similar to your Python CLI version.
+*/
+
+// Utilities
+const DATE_FORMAT = 'YYYY-MM-DD';
+
+function pad(n){ return n<10 ? '0'+n : ''+n; }
+function todayISO(){
+  const d = new Date();
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+}
+
+function validateSymbol(symbol){
+  if(!symbol) throw new Error("symbol 不能為空");
+  const s = String(symbol).trim();
+  if(!/^[0-9]{4}$/.test(s)) throw new Error("股票代碼必須為恰好 4 位數字（例如 2330）");
+  return s;
+}
+function validateDate(dateStr){
+  if(!dateStr) throw new Error("日期不可為空");
+  // basic YYYY-MM-DD check
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) throw new Error("日期格式錯誤，應為 YYYY-MM-DD");
+  // further check valid date
+  const d = new Date(dateStr);
+  if(isNaN(d.getTime())) throw new Error("無效日期");
+  // ensure same date parts (avoid JS auto-correction)
+  const parts = dateStr.split('-').map(x=>parseInt(x,10));
+  if(d.getFullYear() !== parts[0] || d.getMonth()+1 !== parts[1] || d.getDate() !== parts[2]) {
+    throw new Error("無效日期");
+  }
+  return dateStr;
+}
+
+function generateId(dateStr, symbol, idx){
+  const ds = dateStr.replace(/-/g,'');
+  return `${ds}_${symbol}_${idx}`;
+}
+
+// Trade class
+class Trade {
+  constructor({id, date, symbol, side, quantity, price, fee=0.0, note=""}) {
+    this.id = id;
+    this.date = validateDate(date);
+    this.symbol = validateSymbol(symbol);
+    const sideUp = String(side||'').trim().toUpperCase();
+    if(!(sideUp === 'BUY' || sideUp === 'SELL')) throw new Error("side 必須為 BUY 或 SELL");
+    if(parseInt(quantity,10) <= 0) throw new Error("quantity 必須大於 0");
+    if(parseFloat(price) < 0) throw new Error("price 不能為負數");
+    if(parseFloat(fee) < 0) throw new Error("fee 不能為負數");
+    this.side = sideUp;
+    this.quantity = parseInt(quantity,10);
+    this.price = parseFloat(price);
+    this.fee = parseFloat(fee);
+    this.note = note || "";
+  }
+
+  toJSON(){
+    return {
+      id: this.id,
+      date: this.date,
+      symbol: this.symbol,
+      side: this.side,
+      quantity: this.quantity,
+      price: this.price,
+      fee: this.fee,
+      note: this.note
+    };
+  }
+
+  toCSVRow(){
+    return {
+      id: this.id,
+      date: this.date,
+      symbol: this.symbol,
+      side: this.side,
+      quantity: String(this.quantity),
+      price: this.price.toFixed(6),
+      fee: this.fee.toFixed(6),
+      note: this.note
+    };
+  }
+
+  repr(){
+    return `${this.date} | ${this.id} | ${this.symbol} | ${this.side} | qty=${this.quantity} | price=${this.price.toFixed(4)} | fee=${this.fee.toFixed(4)} | ${this.note}`;
+  }
+}
+
+// TradeLogger
+class TradeLogger {
+  constructor(){
+    this.trades = [];
+    this.idxCounter = {}; // keys: YYYYMMDD_symbol -> max idx
+  }
+
+  _updateIdxFromId(id){
+    const m = id.match(/^(\d{8})_(\d{4})_(\d+)$/);
+    if(m){
+      const key = `${m[1]}_${m[2]}`;
+      const v = parseInt(m[3],10);
+      this.idxCounter[key] = Math.max(this.idxCounter[key] || 0, v);
+    }
+  }
+
+  nextIdx(date, symbol){
+    const key = `${date.replace(/-/g,'')}_${symbol}`;
+    this.idxCounter[key] = (this.idxCounter[key] || 0) + 1;
+    return this.idxCounter[key];
+  }
+
+  addTrade(trade){
+    if(this.trades.some(t=>t.id === trade.id)) throw new Error("交易 ID 重複");
+    this.trades.push(trade);
+    this._updateIdxFromId(trade.id);
+    // sort by date, id
+    this.trades.sort((a,b)=>{
+      if(a.date < b.date) return -1;
+      if(a.date > b.date) return 1;
+      if(a.id < b.id) return -1;
+      if(a.id > b.id) return 1;
+      return 0;
+    });
+  }
+
+  listTrades({symbol=null, startDate=null, endDate=null} = {}){
+    let res = this.trades.slice();
+    if(symbol) {
+      symbol = validateSymbol(symbol);
+      res = res.filter(t=>t.symbol === symbol);
+    }
+    if(startDate) {
+      validateDate(startDate);
+      res = res.filter(t=>t.date >= startDate);
+    }
+    if(endDate) {
+      validateDate(endDate);
+      res = res.filter(t=>t.date <= endDate);
+    }
+    return res;
+  }
+
+  positions(){
+    const positions = {};
+    const fifo = {};
+
+    for(const t of this.trades){
+      const s = t.symbol;
+      if(!positions[s]){
+        positions[s] = {quantity:0, avg_cost:0.0, realized_pnl:0.0};
+        fifo[s] = [];
+      }
+      const pos = positions[s];
+
+      if(t.side === 'BUY'){
+        // add to avg cost & fifo
+        const total_cost = pos.avg_cost * pos.quantity + t.price * t.quantity + t.fee;
+        pos.quantity += t.quantity;
+        pos.avg_cost = pos.quantity > 0 ? (total_cost / pos.quantity) : 0.0;
+        fifo[s].push({quantity: t.quantity, price: t.price, fee: t.fee});
+      } else {
+        // SELL
+        let qty_to_sell = t.quantity;
+        let realized = 0.0;
+        while(qty_to_sell > 0 && fifo[s].length > 0){
+          const lot = fifo[s][0];
+          const take = Math.min(qty_to_sell, lot.quantity);
+          const cost_basis = lot.price * take + ((lot.fee || 0) * (take / lot.quantity));
+          realized += (t.price * take - cost_basis);
+          lot.quantity -= take;
+          qty_to_sell -= take;
+          if(lot.quantity === 0) fifo[s].shift();
+        }
+        // if qty_to_sell > 0: naked sell, make position negative (simple handling)
+        if(qty_to_sell > 0){
+          // reduce pos.quantity by remaining sell amount (becomes negative)
+          pos.quantity -= t.quantity;
+        } else {
+          pos.quantity -= t.quantity;
+        }
+        pos.realized_pnl += realized;
+        const remaining_qty = fifo[s].reduce((a,b)=>a + b.quantity, 0);
+        pos.avg_cost = remaining_qty > 0 ? fifo[s].reduce((a,b)=>a + b.price*b.quantity, 0) / remaining_qty : 0.0;
+      }
+    }
+
+    return positions;
+  }
+
+  exportCSV(){
+    const header = ["id","date","symbol","side","quantity","price","fee","note"];
+    const rows = this.trades.map(t => t.toCSVRow());
+    const lines = [header.join(",")].concat(rows.map(r => header.map(h => {
+      // escape commas/newlines
+      let v = (r[h] === undefined || r[h] === null) ? "" : String(r[h]);
+      if(v.includes(",") || v.includes("\n")) v = `"${v.replace(/"/g,'""')}"`;
+      return v;
+    }).join(",")));
+    return lines.join("\n");
+  }
+
+  toJSON(){
+    return JSON.stringify(this.trades.map(t => t.toJSON()), null, 2);
+  }
+
+  loadFromJSONText(txt){
+    const arr = JSON.parse(txt);
+    let added = 0, skipped = 0;
+    for(const d of arr){
+      try{
+        // support both string/number property types
+        const trade = new Trade({
+          id: d.id,
+          date: d.date,
+          symbol: String(d.symbol),
+          side: d.side,
+          quantity: Number(d.quantity),
+          price: Number(d.price),
+          fee: Number(d.fee || 0),
+          note: d.note || ""
+        });
+        this.addTrade(trade);
+        added++;
+      }catch(e){
+        console.warn("載入時跳過:", e, d);
+        skipped++;
+      }
+    }
+    return {added, skipped};
+  }
+
+  loadFromCSVText(txt){
+    const lines = txt.split(/\r?\n/).filter(l => l.trim() !== '');
+    if(lines.length < 2) return {added:0, skipped:0};
+    const header = lines[0].split(',').map(h => h.trim());
+    const rows = lines.slice(1);
+    let added=0, skipped=0;
+    for(const line of rows){
+      // naive CSV parse (handles quoted fields)
+      const parsed = parseCSVLine(line);
+      if(parsed.length !== header.length){
+        console.warn("跳過行(欄位數不符):", line);
+        skipped++;
+        continue;
+      }
+      const obj = {};
+      for(let i=0;i<header.length;i++) obj[header[i]] = parsed[i];
+      if(!obj.id || !obj.date || !obj.symbol){
+        console.warn("跳過不完整行:", obj);
+        skipped++;
+        continue;
+      }
+      try{
+        const trade = new Trade({
+          id: obj.id,
+          date: obj.date,
+          symbol: String(obj.symbol),
+          side: obj.side,
+          quantity: Number(obj.quantity),
+          price: Number(obj.price),
+          fee: Number(obj.fee || 0),
+          note: obj.note || ""
+        });
+        this.addTrade(trade);
+        added++;
+      }catch(e){
+        console.warn("匯入時跳過:", e, obj);
+        skipped++;
+      }
+    }
+    return {added, skipped};
+  }
+}
+
+// Minimal CSV parser for one line (handles double-quoted fields)
+function parseCSVLine(line){
+  const res = [];
+  let cur = '';
+  let inQuotes = false;
+  for(let i=0;i<line.length;i++){
+    const ch = line[i];
+    if(inQuotes){
+      if(ch === '"'){
+        if(line[i+1] === '"'){ cur += '"'; i++; }
+        else { inQuotes = false; }
+      } else cur += ch;
+    } else {
+      if(ch === ','){ res.push(cur); cur = ''; }
+      else if(ch === '"'){ inQuotes = true; }
+      else cur += ch;
+    }
+  }
+  res.push(cur);
+  return res;
+}
+
+/* ---------- App logic & DOM ---------- */
+
+const TL = new TradeLogger();
+
+// DOM refs
+const fDate = document.getElementById('f-date');
+const fSymbol = document.getElementById('f-symbol');
+const fSide = document.getElementById('f-side');
+const fQty = document.getElementById('f-qty');
+const fPrice = document.getElementById('f-price');
+const fFee = document.getElementById('f-fee');
+const fNote = document.getElementById('f-note');
+const btnAdd = document.getElementById('btn-add');
+const btnClear = document.getElementById('btn-clear');
+const formMsg = document.getElementById('form-msg');
+const tradesTbody = document.getElementById('trades-tbody');
+const noTrades = document.getElementById('no-trades');
+const positionsTbody = document.getElementById('positions-tbody');
+
+const filterSym = document.getElementById('filter-symbol');
+const filterStart = document.getElementById('filter-start');
+const filterEnd = document.getElementById('filter-end');
+const btnFilter = document.getElementById('btn-filter');
+const btnReset = document.getElementById('btn-reset');
+
+const fileCsvImport = document.getElementById('file-csv-import');
+const fileJsonLoad = document.getElementById('file-json-load');
+const downloadJsonAll = document.getElementById('download-json-all');
+const btnExportCsv = document.getElementById('btn-export-csv');
+
+fDate.value = todayISO();
+
+// render functions
+function renderTrades(list=null){
+  const arr = list || TL.trades;
+  tradesTbody.innerHTML = '';
+  if(arr.length === 0){
+    noTrades.classList.remove('hidden');
+  } else {
+    noTrades.classList.add('hidden');
+  }
+  for(const t of arr){
+    const tr = document.createElement('tr');
+    tr.className = 'border-b last:border-0';
+    tr.innerHTML = `
+      <td class="text-sm text-left">${t.date}</td>
+      <td class="text-xs mono text-left">${t.id}</td>
+      <td class="text-left">${t.symbol}</td>
+      <td class="text-left">${t.side}</td>
+      <td class="text-right">${t.quantity}</td>
+      <td class="text-right">${t.price.toFixed(6)}</td>
+      <td class="text-right">${t.fee.toFixed(6)}</td>
+      <td class="text-left">${escapeHtml(t.note)}</td>
+      <td class="text-center"><button data-id="${t.id}" class="px-2 py-1 text-xs border rounded-md btn-delete">刪除</button></td>
+    `;
+    tradesTbody.appendChild(tr);
+  }
+  // attach delete handlers
+  document.querySelectorAll('.btn-delete').forEach(b=>{
+    b.addEventListener('click', (e)=>{
+      const id = b.getAttribute('data-id');
+      deleteTradeById(id);
+    });
+  });
+  renderPositions();
+}
+
+function renderPositions(){
+  const pos = TL.positions();
+  positionsTbody.innerHTML = '';
+  const keys = Object.keys(pos);
+  if(keys.length === 0){
+    positionsTbody.innerHTML = '<tr><td colspan="4" class="text-[var(--muted)]">目前沒有持倉。</td></tr>';
+    return;
+  }
+  for(const sym of keys){
+    const p = pos[sym];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="text-left">${sym}</td>
+      <td class="text-right">${p.quantity}</td>
+      <td class="text-right">${p.avg_cost.toFixed(4)}</td>
+      <td class="text-right">${p.realized_pnl.toFixed(4)}</td>
+    `;
+    positionsTbody.appendChild(tr);
+  }
+}
+
+function escapeHtml(s){
+  return String(s || '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+}
+
+// CRUD helpers
+function deleteTradeById(id){
+  const idx = TL.trades.findIndex(t=>t.id === id);
+  if(idx>=0){
+    if(!confirm('確定要刪除此筆交易？')) return;
+    TL.trades.splice(idx,1);
+    renderTrades();
+  }
+}
+
+// Add trade form
+btnAdd.addEventListener('click', ()=>{
+  // clear messages
+  formMsg.classList.add('hidden');
+  clearFieldErrors();
+  try{
+    const date = fDate.value;
+    const symbol = fSymbol.value.trim();
+    const side = fSide.value;
+    const qty = Number(fQty.value);
+    const price = Number(fPrice.value);
+    const fee = Number(fFee.value || 0);
+    const note = fNote.value || '';
+    // validate
+    validateDate(date);
+    validateSymbol(symbol);
+    if(!(side === 'BUY' || side === 'SELL')) throw new Error('方向錯誤');
+    if(!Number.isInteger(qty) || qty <= 0) throw new Error('數量必須為正整數');
+    if(isNaN(price) || price < 0) throw new Error('價格需為非負數');
+    if(isNaN(fee) || fee < 0) throw new Error('手續費需為非負數');
+
+    const idx = TL.nextIdx(date, symbol);
+    const id = generateId(date, symbol, idx);
+    const trade = new Trade({id, date, symbol, side, quantity:qty, price, fee, note});
+    TL.addTrade(trade);
+    formMsg.textContent = '新增成功';
+    formMsg.classList.remove('hidden');
+    setTimeout(()=>formMsg.classList.add('hidden'), 2000);
+    // reset some fields
+    fQty.value = '1';
+    fPrice.value = '0';
+    fFee.value = '0';
+    fNote.value = '';
+    renderTrades();
+  }catch(e){
+    showFieldError(e.message || String(e));
+  }
+});
+
+btnClear.addEventListener('click', ()=>{
+  fDate.value = todayISO();
+  fSymbol.value = '';
+  fSide.value = 'BUY';
+  fQty.value = '1';
+  fPrice.value = '0';
+  fFee.value = '0';
+  fNote.value = '';
+  formMsg.classList.add('hidden');
+  clearFieldErrors();
+});
+
+function showFieldError(msg){
+  // try to detect which field
+  if(msg.includes('symbol')) {
+    showError('err-symbol', msg);
+  } else if(msg.includes('日期') || msg.includes('date')) {
+    showError('err-date', msg);
+  } else {
+    // generic
+    alert('新增交易失敗：' + msg);
+  }
+}
+
+function showError(id, msg){
+  const el = document.getElementById(id);
+  if(el){
+    el.textContent = msg;
+    el.classList.remove('hidden');
+  } else alert(msg);
+}
+
+function clearFieldErrors(){
+  ['err-date','err-symbol'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el){ el.textContent = ''; el.classList.add('hidden'); }
+  });
+}
+
+// Filters
+btnFilter.addEventListener('click', ()=>{
+  try{
+    const sym = filterSym.value.trim() || null;
+    const sd = filterStart.value || null;
+    const ed = filterEnd.value || null;
+    const arr = TL.listTrades({symbol: sym, startDate: sd, endDate: ed});
+    renderTrades(arr);
+  }catch(e){
+    alert('過濾失敗：' + e.message);
+  }
+});
+btnReset.addEventListener('click', ()=>{
+  filterSym.value = '';
+  filterStart.value = '';
+  filterEnd.value = '';
+  renderTrades();
+});
+
+// CSV import
+fileCsvImport.addEventListener('change', (ev)=>{
+  const f = ev.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const txt = e.target.result;
+      const res = TL.loadFromCSVText(txt);
+      alert(`匯入完成：新增 ${res.added} 筆，跳過 ${res.skipped} 筆`);
+      renderTrades();
+    }catch(err){
+      alert('匯入失敗：' + err.message);
+    }
+  };
+  reader.readAsText(f, 'utf-8');
+  // clear input so same file can be re-uploaded
+  ev.target.value = '';
+});
+
+// JSON import
+fileJsonLoad.addEventListener('change', (ev)=>{
+  const f = ev.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const txt = e.target.result;
+      const res = TL.loadFromJSONText(txt);
+      alert(`JSON 載入完成：新增 ${res.added} 筆，跳過 ${res.skipped} 筆`);
+      renderTrades();
+    }catch(err){
+      alert('載入失敗：' + err.message);
+    }
+  };
+  reader.readAsText(f, 'utf-8');
+  ev.target.value = '';
+});
+
+// Export CSV
+btnExportCsv.addEventListener('click', ()=>{
+  const csv = TL.exportCSV();
+  const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'trades_export.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+// Download JSON all
+downloadJsonAll.addEventListener('click', (ev)=>{
+  ev.preventDefault();
+  const json = TL.toJSON();
+  const blob = new Blob([json], {type: 'application/json;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'trades_export.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+// simple initial demo data
+(function seedDemo(){
+  try{
+    const t1 = new Trade({id: generateId('2023-12-01','2330',1), date:'2023-12-01', symbol:'2330', side:'BUY', quantity:100, price:50.25, fee:10, note:'Demo 買入'});
+    const t2 = new Trade({id: generateId('2023-12-05','2330',1), date:'2023-12-05', symbol:'2330', side:'SELL', quantity:30, price:55.0, fee:3, note:'Demo 賣出'});
+    TL.addTrade(t1); TL.addTrade(t2);
+    renderTrades();
+  }catch(e){
+    console.warn('Seed demo error', e);
+  }
+})();
+
+</script>
+
+
+</body></html>
